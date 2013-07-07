@@ -1,0 +1,81 @@
+#!/bin/bash
+
+source ./port_checker_common
+
+{
+monitoring="${1}"; ports1="${2}"; interval="${3}"; interval_unit="${4}"
+client="${5}"; message_count="${6}"; mail_list="${7}"
+msg_subj="${8}"; msg_first_body="${9}"; msg_body="${10}"
+port_cheker_log="${11}"; sendme_mail="${12}"
+
+print_and_mail "${port_cheker_log}" "${sendme_mail}" "${mail_list}" "${msg_subj}" "${msg_first_body}"
+
+mass=()
+
+escalation_f()
+{
+    local counter_f1=0
+    local counter_f=$1
+    local port_f=$2
+	local ip=$3
+    
+    for (( ; ; ))
+    do
+        if (("$counter_f" >= "$message_count")); then
+            body_1="${client}. Нет связи с ${ip}:${port_f}"
+			body_2="Проверка №${counter_f} не пройдена. Мониторинг остановлен до восстановления связи с ${ip}:${port_f}"
+			text="${body_1} ${body_2} ${msg_body}"
+            print_and_mail "${port_cheker_log}" "${sendme_mail}" "${mail_list}" "${msg_subj}" "${text}"
+			exit_program port_checker.sh
+        fi
+
+	let "counter_f1 += 1"
+	if (("counter_f == counter_f1")); then
+            let "(interval_=interval*counter_f)"
+            body_1="${client}. Нет связи с ${ip}:${port_f}"
+			body_2="Проверка №${counter_f} не пройдена.  До следующей проверки ждем ${interval_}${interval_unit}."
+			text="${body_1} ${body_2} ${msg_body}"
+            print_and_mail "${port_cheker_log}" "${sendme_mail}" "${mail_list}" "${msg_subj}" "${text}"
+            sleep "${interval_}${interval_unit}"
+	    break
+        fi
+    done
+}
+											    
+check_host()
+{
+	local host_f=$1
+	local ports_f=$2
+	# В зависимости от дистрибутива получаем имя утилиты netcat
+	local net_cat=`get_net_cat_name`
+	
+	counter=0
+	while true; do
+		for port in $ports_f
+		do
+			if ("${net_cat}" -z "${host_f}" "${port}") then
+				print_me "${port_cheker_log}" "${host_f}:${port} is up"
+				mass[port]=0
+			else
+				print_me "${port_cheker_log}" "${host_f}:${port} is down"
+				#let "mass[port] = ${mass[port]} + 1"
+				let "mass[port] += 1"
+				body1=$msg_body					       
+				escalation_f  "${mass[${port}]}" "${port}" "${host_f}"
+			fi
+		# Проходим все ip и порты заданные в конфиге с интервалом 1 сек
+		sleep 1s
+		done
+	done &
+}
+
+for i in "${monitoring[@]}"
+do
+	ip="${i%%:*}"
+	ports=`echo "${i##*:}" | sed 's/,/ /g'`
+	check_host "${ip}" "${ports}"
+done
+}
+
+
+

@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+# Отправка почтовых сообщений для скриптов
+#
+send_xmail()
+{
+    # Отправить письмо $1 - адрес, $2 - тема, $3 - сообщение (имя файла или строка)
+    local email_list="${1}"
+    local subj="${2}"
+    local body="${3}"
+    local log_file="${4}"
+    local doMsg=""
+    local result=0
+    
+    local mdate="$(date +%d-%m-%Y\ %H:%M:%S)"
+    
+    #
+    if [ -f "${body}" ]; then
+	doMsg="cat ${body}"
+    else
+        doMsg="echo ${body}"
+    fi
+
+    #${doMsg} | mail -n -s "${subj}" ${email}" -c ${list}
+    ${doMsg} | mailx -s "${subj}" "${email_list}"
+    
+    result=$?
+    if [ "${result}" == "0" ]; then
+	echo "${mdate} Msg sent -> ${email_list}" >> $log_file
+    else
+	echo "${mdate} ERROR sending msg -> ${email_list}" >> $log_file
+    fi
+
+    return $result
+}

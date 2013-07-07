@@ -1,0 +1,103 @@
+#!/bin/bash
+
+source ./port_checker_msg_send
+
+get_distr_name()
+{
+	OS=`uname -s`
+	REV=`uname -r`
+	MACH=`uname -m`
+
+	GetVersionFromFile()
+	{
+		VERSION=`cat $1 | tr "\n" ' ' | sed s/.*VERSION.*=\ // `
+	}
+
+	if [ "${OS}" = "SunOS" ] ; then
+		OS=Solaris
+		ARCH=`uname -p`	
+		OSSTR="${OS} ${REV}(${ARCH} `uname -v`)"
+	elif [ "${OS}" = "AIX" ] ; then
+		OSSTR="${OS} `oslevel` (`oslevel -r`)"
+	elif [ "${OS}" = "Linux" ] ; then
+		KERNEL=`uname -r`
+		if [ -f /etc/redhat-release ] ; then
+			DIST='RedHat'
+			PSUEDONAME=`cat /etc/redhat-release | sed s/.*\(// | sed s/\)//`
+			REV=`cat /etc/redhat-release | sed s/.*release\ // | sed s/\ .*//`
+		elif [ -f /etc/SuSE-release ] ; then
+			DIST=`cat /etc/SuSE-release | tr "\n" ' '| sed s/VERSION.*//`
+			REV=`cat /etc/SuSE-release | tr "\n" ' ' | sed s/.*=\ //`
+		elif [ -f /etc/mandrake-release ] ; then
+			DIST='Mandrake'
+			PSUEDONAME=`cat /etc/mandrake-release | sed s/.*\(// | sed s/\)//`
+			REV=`cat /etc/mandrake-release | sed s/.*release\ // | sed s/\ .*//`
+		elif [ -f /etc/debian_version ] ; then
+			DIST="Debian `cat /etc/debian_version`"
+			REV=""
+
+		fi
+		if [ -f /etc/UnitedLinux-release ] ; then
+			DIST="${DIST}[`cat /etc/UnitedLinux-release | tr "\n" ' ' | sed s/VERSION.*//`]"
+		fi
+		
+		OSSTR="${OS} ${DIST} ${REV}(${PSUEDONAME} ${KERNEL} ${MACH})"
+
+	fi
+
+	echo "${OSSTR}"
+}
+
+get_net_cat_name()
+{
+	local net_cat_name
+	if [ -f /etc/redhat-release ] ; then
+		net_cat_name="nc"
+	elif [ -f /etc/SuSE-release ] ; then
+		net_cat_name="netcat"
+	elif [ -f /etc/mandrake-release ] ; then
+		net_cat_name="unknow"
+	elif [ -f /etc/debian_version ] ; then
+		net_cat_name="netcat"
+	fi
+	
+	#whatis "${net_cat_name}"
+	echo "${net_cat_name}"
+}
+
+print_and_mail()
+{
+    local port_cheker_log="${1}"
+    local sendme_mail="${2}"
+    local e_list="${3}"
+    local msg_subj="${4}"
+    local msg_body="${5}"
+    
+    local mdate="$(date +%d-%m-%Y\ %H:%M:%S)"
+    
+    local text="${mdate} Отправляем письмо "${e_list}". Тема '"${msg_subj}"', текст '"${msg_body}"'" 
+    echo $text
+    echo $text >> $port_cheker_log
+    
+    if [ $sendme_mail == "true" ]; then
+        send_xmail "${e_list}" "${msg_subj}" "${msg_body}" "${port_cheker_log}"
+    fi
+}
+
+print_me()
+{
+    local port_cheker_log="${1}"
+    local text="${2}"
+    
+    local mdate="$(date +%d-%m-%Y\ %H:%M:%S)"
+    
+    echo "${mdate} ${text}"
+    echo "${mdate} ${text}" >> $port_cheker_log
+}
+
+exit_program()
+{
+	local program_f=$1
+	killall $program_f
+	exit
+}
